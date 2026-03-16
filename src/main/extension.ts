@@ -32,6 +32,13 @@ import { Uri, WorkspaceFolder } from 'vscode';
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
 
+	// Set a context key so that when clauses in package.json can detect that
+	// Payara Tools is active. This is used to show "Run on Payara Server" in
+	// the Explorer context menu for any file (not just Java files), mirroring
+	// the behaviour of the RSP UI extension's "Run on Server" entry which has
+	// no when-clause restriction.
+	vscode.commands.executeCommand('setContext', 'payara.extensionActivated', true);
+
 	const payaraServerInstanceProvider: PayaraInstanceProvider = new PayaraInstanceProvider(context);
 	const payaraServerTree: PayaraServerTreeDataProvider = new PayaraServerTreeDataProvider(context, payaraServerInstanceProvider);
 	const payaraServerInstanceController: PayaraServerInstanceController = new PayaraServerInstanceController(context, payaraServerInstanceProvider, context.extensionPath);
@@ -203,49 +210,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		vscode.commands.registerCommand(
 			'payara.server.app.deploy',
 			(uri: vscode.Uri | string) => payaraServerInstanceController.deployApp(
-				uri instanceof vscode.Uri ? uri : vscode.Uri.parse(uri), false)
+				toUri(uri), false)
 		)
 	);
 	context.subscriptions.push(
 		vscode.commands.registerCommand(
 			'payara.server.app.debug',
 			(uri: vscode.Uri | string) => payaraServerInstanceController.deployApp(
-				uri instanceof vscode.Uri ? uri : vscode.Uri.parse(uri), true)
+				toUri(uri), true)
 		)
 	);
-	// Handle the generic "Run on Server" command from the RSP UI extension
-	// (redhat.vscode-rsp-ui) when no RSP providers are registered
-	try {
-		context.subscriptions.push(
-			vscode.commands.registerCommand(
-				'server.application.run',
-				(uri: vscode.Uri | string) => payaraServerInstanceController.deployApp(
-					uri instanceof vscode.Uri ? uri : vscode.Uri.parse(uri), false)
-			)
-		);
-	} catch (e) {
-		// Command already registered by another extension (e.g., redhat.vscode-rsp-ui).
-		// The 'Run on Payara Server' option in the Explorer context menu provides the same functionality.
-		if (!(e instanceof Error && e.message.includes('already exists'))) {
-			console.error('Payara: unexpected error registering server.application.run handler', e);
-		}
-	}
-	// Handle the generic "Debug on Server" command from the RSP UI extension
-	try {
-		context.subscriptions.push(
-			vscode.commands.registerCommand(
-				'server.application.debug',
-				(uri: vscode.Uri | string) => payaraServerInstanceController.deployApp(
-					uri instanceof vscode.Uri ? uri : vscode.Uri.parse(uri), true)
-			)
-		);
-	} catch (e) {
-		// Command already registered by another extension (e.g., redhat.vscode-rsp-ui).
-		// The 'Debug on Payara Server' option in the Explorer context menu provides the same functionality.
-		if (!(e instanceof Error && e.message.includes('already exists'))) {
-			console.error('Payara: unexpected error registering server.application.debug handler', e);
-		}
-	}
 	context.subscriptions.push(
 		vscode.commands.registerCommand(
 			'payara.server.app.undeploy',
@@ -413,6 +387,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
 	}
 
+}
+
+/** Normalises a command argument that may be either a {@link vscode.Uri} object
+ *  (passed by VS Code context menus) or a plain string URI. */
+function toUri(uriOrString: vscode.Uri | string): vscode.Uri {
+	return uriOrString instanceof vscode.Uri ? uriOrString : vscode.Uri.parse(uriOrString);
 }
 
 // this method is called when your extension is deactivated
