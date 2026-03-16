@@ -29,8 +29,13 @@ import * as path from 'path';
 import { PayaraRemoteServerInstance } from './fish/payara/server/PayaraRemoteServerInstance';
 import { DeployOption } from './fish/payara/common/DeployOption';
 import { Uri, WorkspaceFolder } from 'vscode';
+import { RSPController, RSPServer, ServerState, retrieveUIExtension } from 'vscode-server-connector-api';
+import { PayaraRspController } from './fish/payara/server/rsp/PayaraRspController';
 
-export async function activate(context: vscode.ExtensionContext): Promise<void> {
+/** The Payara RSP provider ID – must match the publisher.name in package.json. */
+const PAYARA_RSP_PROVIDER_ID = 'Payara.payara-vscode';
+
+export async function activate(context: vscode.ExtensionContext): Promise<RSPController> {
 
 	// Set a context key so that when clauses in package.json can detect that
 	// Payara Tools is active. This is used to show "Run on Payara Server" in
@@ -386,6 +391,33 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		}
 
 	}
+
+	// ------------------------------------------------------------------
+	// RSP provider registration (redhat.vscode-rsp-ui integration)
+	// ------------------------------------------------------------------
+	// Create the RSP controller that RSP UI calls when it wants to start
+	// the Payara RSP server.
+	const rspController: PayaraRspController = new PayaraRspController(
+		payaraServerInstanceProvider,
+		payaraServerInstanceController,
+		context.extensionPath
+	);
+
+	// Register with RSP UI if it is installed. The registration is best-effort:
+	// Payara Tools works normally even when RSP UI is not present.
+	const rspUiApi = await retrieveUIExtension();
+	if (rspUiApi.available) {
+		const rsp: RSPServer = {
+			type: { id: PAYARA_RSP_PROVIDER_ID, visibilename: 'Payara' },
+			state: ServerState.STOPPED
+		};
+		rspUiApi.api.registerRSPProvider(rsp).catch(err => {
+			console.error('Payara: failed to register RSP provider', err);
+		});
+	}
+
+	// RSP UI calls activate() a second time and expects the RSPController back.
+	return rspController;
 
 }
 
