@@ -46,6 +46,8 @@
 		"onCommand:payara.server.app.deploy",
 		"onCommand:payara.server.app.debug",
 		"onCommand:payara.server.app.migrate",
+		"onCommand:server.application.run",
+		"onCommand:server.application.debug",
 		"onCommand:payara.micro.create.project",
 		"onCommand:payara.micro.refresh",
 		"onCommand:payara.micro.refresh.all",
@@ -494,12 +496,12 @@
 				{
 					"command": "payara.server.app.deploy",
 					"when": "explorerResourceIsFolder == true || resourceLangId == java || resourceFilename == pom.xml || resourceFilename == build.gradle || resourceExtname == .war || resourceExtname == .jar",
-					"group": "run@0"
+					"group": "1_server-application@0"
 				},
 				{
 					"command": "payara.server.app.debug",
 					"when": "explorerResourceIsFolder == true || resourceLangId == java || resourceFilename == pom.xml || resourceFilename == build.gradle || resourceExtname == .war || resourceExtname == .jar",
-					"group": "run@1"
+					"group": "1_server-application@2"
 				},
 				{
 					"command": "payara.server.app.migrate",
