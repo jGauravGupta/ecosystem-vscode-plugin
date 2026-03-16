@@ -202,15 +202,50 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	context.subscriptions.push(
 		vscode.commands.registerCommand(
 			'payara.server.app.deploy',
-			uri => payaraServerInstanceController.deployApp(vscode.Uri.parse(uri), false)
+			(uri: vscode.Uri | string) => payaraServerInstanceController.deployApp(
+				uri instanceof vscode.Uri ? uri : vscode.Uri.parse(uri), false)
 		)
 	);
 	context.subscriptions.push(
 		vscode.commands.registerCommand(
 			'payara.server.app.debug',
-			uri => payaraServerInstanceController.deployApp(vscode.Uri.parse(uri), true)
+			(uri: vscode.Uri | string) => payaraServerInstanceController.deployApp(
+				uri instanceof vscode.Uri ? uri : vscode.Uri.parse(uri), true)
 		)
 	);
+	// Handle the generic "Run on Server" command from the RSP UI extension
+	// (redhat.vscode-rsp-ui) when no RSP providers are registered
+	try {
+		context.subscriptions.push(
+			vscode.commands.registerCommand(
+				'server.application.run',
+				(uri: vscode.Uri | string) => payaraServerInstanceController.deployApp(
+					uri instanceof vscode.Uri ? uri : vscode.Uri.parse(uri), false)
+			)
+		);
+	} catch (e) {
+		// Command already registered by another extension (e.g., redhat.vscode-rsp-ui).
+		// The 'Run on Payara Server' option in the Explorer context menu provides the same functionality.
+		if (!(e instanceof Error && e.message.includes('already exists'))) {
+			console.error('Payara: unexpected error registering server.application.run handler', e);
+		}
+	}
+	// Handle the generic "Debug on Server" command from the RSP UI extension
+	try {
+		context.subscriptions.push(
+			vscode.commands.registerCommand(
+				'server.application.debug',
+				(uri: vscode.Uri | string) => payaraServerInstanceController.deployApp(
+					uri instanceof vscode.Uri ? uri : vscode.Uri.parse(uri), true)
+			)
+		);
+	} catch (e) {
+		// Command already registered by another extension (e.g., redhat.vscode-rsp-ui).
+		// The 'Debug on Payara Server' option in the Explorer context menu provides the same functionality.
+		if (!(e instanceof Error && e.message.includes('already exists'))) {
+			console.error('Payara: unexpected error registering server.application.debug handler', e);
+		}
+	}
 	context.subscriptions.push(
 		vscode.commands.registerCommand(
 			'payara.server.app.undeploy',
