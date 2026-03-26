@@ -19,6 +19,7 @@
 
 import * as cp from 'child_process';
 import { ChildProcess } from 'child_process';
+import * as net from 'net';
 import * as fs from "fs";
 import * as fse from "fs-extra";
 import * as _ from "lodash";
@@ -50,6 +51,8 @@ import { PayaraServerTransformPlugin } from '../server/PayaraServerTransformPlug
 import { Maven } from '../project/Maven';
 
 export class PayaraServerInstanceController extends PayaraInstanceController {
+
+    private static readonly PORT_CHECK_TIMEOUT_MS: number = 500;
 
     private deployments: Map<vscode.WorkspaceFolder, PayaraServerInstance> = new Map<vscode.WorkspaceFolder, PayaraServerInstance>();
 
@@ -640,6 +643,34 @@ export class PayaraServerInstanceController extends PayaraInstanceController {
             return;
         }
 
+        // Check if the server is already running (e.g., started from the command line)
+        if (await this.isPortInUse(payaraServer.getHost(), payaraServer.getAdminPort())) {
+            payaraServer.setDebug(debug);
+            payaraServer.setState(InstanceState.LOADING);
+            this.refreshServerList();
+            payaraServer.getOutputChannel().show(false);
+            payaraServer.checkAliveStatusUsingRest(ServerUtils.DEFAULT_RETRY_COUNT,
+                async () => {
+                    payaraServer.connectOutput();
+                    payaraServer.setStarted(true);
+                    this.refreshServerList();
+                    payaraServer.reloadApplications();
+                    if (callback) {
+                        callback(true);
+                    }
+                },
+                async (message?: string) => {
+                    payaraServer.setStarted(false);
+                    this.refreshServerList();
+                    if (callback) {
+                        callback(false);
+                    }
+                    vscode.window.showErrorMessage('Unable to start the Payara Server. ' + message);
+                }
+            );
+            return;
+        }
+
         let process: ChildProcess = new StartTask().startServer(payaraServer, debug, debugPort);
         if (process.pid) {
             payaraServer.setDebug(debug);
@@ -681,6 +712,25 @@ export class PayaraServerInstanceController extends PayaraInstanceController {
                 }
             );
         }
+    }
+
+    private isPortInUse(host: string, port: number): Promise<boolean> {
+        return new Promise((resolve) => {
+            let resolved = false;
+            const socket = new net.Socket();
+            const done = (result: boolean) => {
+                if (!resolved) {
+                    resolved = true;
+                    socket.destroy();
+                    resolve(result);
+                }
+            };
+            socket.setTimeout(PayaraServerInstanceController.PORT_CHECK_TIMEOUT_MS);
+            socket.on('connect', () => done(true));
+            socket.on('timeout', () => done(false));
+            socket.on('error', () => done(false));
+            socket.connect(port, host);
+        });
     }
 
     public async restartServer(payaraServer: PayaraServerInstance, debug: boolean, callback?: (status: boolean) => any): Promise<void> {
